@@ -120,16 +120,11 @@ catch {
                 $rdsTenant, $rdsHostPool = tenant-pool-menu
             }
         }
-        $userSession = Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool
-        $rdsContext
-        $rdsTenant
-        $rdsHostPool
-        $userSession
         pause
 
      }
-     until (($selection -eq 'n') -or ($userSession -ne $null))#run until say N or auth goes through
-     if ($selection -eq 'n'){break}
+     until (($selection -eq 'q') -or ($userSession -ne $null))#run until say N or auth goes through
+     if ($selection -eq 'q'){break}
     
     
  }
