@@ -82,7 +82,7 @@ catch {
         if ($selection -ne 'n'){$rdsContext = Add-RdsAccount -DeploymentUrl "https://rdbroker.wvd.microsoft.com"}
         
     }
-    until (($selection -eq 'n') -or ($rdsContext -ne $null))#run until say N or auth goes through
+    until (($selection -eq 'n') -or ($null -ne $rdsContext))#run until say N or auth goes through
     if ($selection -eq 'n'){break}
     
     #if authenticated prompt for and check account again tenant
@@ -123,7 +123,7 @@ catch {
         pause
 
      }
-     until (($selection -eq 'q') -or ($userSession -ne $null))#run until say N or auth goes through
+     until (($selection -eq 'q') -or ($null -ne $userSession))#run until say N or auth goes through
      if ($selection -eq 'q'){break}
     
     
