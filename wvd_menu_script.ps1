@@ -39,16 +39,38 @@ function rds-menu {
     Clear-Host
     Write-Host "================ RDS Menu ================"
     Write-Host "Welcome $rdsUser, make a selection below for what you want to do: "
+    Write-Host "Your current tenant: $rdsTenant "
+    Write-Host "Your current host pool: $rdsHostPool "
+    Write-Host ""
+    Write-Host "L: Press 'L' to logon as a different RDS admin."
+    Write-Host "T: Press 'T' to switch the RDS tenant or host pool."
+    Write-Host ""
+    Write-Host "Please select a menu item below:"
     Write-Host "1: Press '1' to list all logged in users."
     Write-Host "2: Press '2' to add a user to an app group."
     Write-Host "3: Press '3' to list all app groups."
     Write-Host "4: Press '4' to force a user logoff."
+    Write-Host "5: Press '5' to get the number of logged on users."
+    #Write-Host "6: Press '6' to show users logged on to a specific host."
+    Write-Host "7: Press '7' to add a web browser to a user profile."
+    Write-Host "8: Press '8' to remove a web browser from a user profile."
     Write-Host "Q: Press 'Q' to quit."
 }
+function check-rds-login{
+    $rdsContext = Get-RdsContext -ErrorAction Stop
+    return $rdsContext
+}
 
-
-
-
+function login-menu-rds-cert {
+#import 
+    Clear-Host
+    Write-Host "================ Login with Azure Admin Credentials to Continue ================"
+    $Thumbprint = "BBBC38ED74F21B8427B162AF80A4F17282D8340F"
+    $TenantId = "5231c81b-959c-4621-a7bd-6635103652e7"
+    $ApplicationId = "21cb4b5f-f455-4333-b6ac-86671ffa987b"
+    $azAccount = Connect-AzureRMAccount -ServicePrincipal -TenantId $TenantId -ApplicationId $ApplicationId -CertificateThumbprint $Thumbprint 
+    $rdsAccount = Add-RdsAccount -DeploymentUrl "https://rdbroker.wvd.microsoft.com" -CertificateThumbprint $Thumbprint -ApplicationId $ApplicationId -AadTenantId $TenantId
+}
 
 ################################################################################
 #########################       Begin Application       ########################
@@ -56,40 +78,43 @@ function rds-menu {
 
 
 
-###############################     Login to azure if not already logged in.
-Clear-Host
-
-#Write-Host "================ Login with Azure Admin Credentials to Continue ================"
-#$azAccount = Connect-AzureRMAccount
 
 
-#show login screen
-#$azAccount = login-menu-azure
-$rdsAccount = login-menu-rds
-
-#only used for testing
-
+#Initial login or validate already logged in
 try {
-    #test credentials
-    $rdsContext = Get-RdsContext -ErrorAction Stop
+    $rdsContext = check-rds-login
 }
-catch {
-    Write-Host "Login failed"
-    do
-    {
-        $selection = Read-Host "Try Again? (Y/N)"
-        #login failed, run login again is select Y otherwise break
-        if ($selection -ne 'n'){$rdsContext = Add-RdsAccount -DeploymentUrl "https://rdbroker.wvd.microsoft.com"}
-        
+catch{
+    $rdsAccount = login-menu-rds
+    try {
+        #test credentials
+        $rdsContext = Get-RdsContext -ErrorAction Stop
     }
-    until (($selection -eq 'n') -or ($null -ne $rdsContext))#run until say N or auth goes through
-    if ($selection -eq 'n'){break}
-    
-    #if authenticated prompt for and check account again tenant
+    catch {
+        Write-Host "Login failed"
+        do
+        {
+            $selection = Read-Host "Try Again? (Y/N)"
+            #login failed, run login again is select Y otherwise break
+            if ($selection -ne 'n'){$rdsContext = Add-RdsAccount -DeploymentUrl "https://rdbroker.wvd.microsoft.com"}
+            
+        }
+        until (($selection -eq 'n') -or ($null -ne $rdsContext))#run until say N or auth goes through
+        if ($selection -eq 'n'){break}
+        
+        #if authenticated prompt for and check account again tenant
+    }
 }
 
 
-$rdsTenant, $rdsHostPool = tenant-pool-menu
+#validate credentials if new
+
+#if no existin pool or tenant set
+if (($null -eq $rdsHostPool) -or ($null -eq $rdsTenant)){
+    $rdsTenant, $rdsHostPool = tenant-pool-menu
+}
+
+
 Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool
 Clear-Host
 $rdsUser = $rdsContext.UserName
@@ -139,6 +164,14 @@ do
         $selection = Read-Host "Please make a selection"
         switch ($selection)
             {
+                'L' {
+                        $rdsAccount = login-menu-rds
+                        $rdsContext = Get-RdsContext -ErrorAction Stop
+                        $rdsUser = $rdsContext.UserName
+                    } 
+                'T' {
+                        $rdsTenant, $rdsHostPool = tenant-pool-menu
+                    }   
                 '1' {
                         'get logged in users'
                         Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool
@@ -158,6 +191,35 @@ do
                         $upn = Read-Host "UPN for user to logoff ex. bsmith@nrtbus.com: "
                         Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool | where { $_.UserPrincipalName -eq $upn } | Invoke-RdsUserSessionLogoff -NoUserPrompt
                     }
+                '5' {
+                    'number of logged in users'
+                    $users = Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool
+                    $users.count
+                   }
+                #'6' {
+                    #'show all logged in users for a specific machine'
+                    #list host names
+                    #Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool | Format-Table SessionHostName -auto
+                    #$hostName= Read-Host "Enter a host name: "
+                #    $userReturn = Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool 
+                    #Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool | where { $_.UserPrincipalName -eq $upn } | Invoke-RdsUserSessionLogoff -NoUserPrompt
+                #}
+                '7' {
+                    'add web browser to user profile'
+                    $upn = Read-Host "UPN for user ex. bsmith@nrtbus.com: "
+                    Add-RdsAppGroupUser -TenantName $rdsTenant -HostPoolName $rdsHostPool -AppGroupName "BrowserAppGroup" -UserPrincipalName $upn
+                    Get-RdsAppGroupUser -TenantName $rdsTenant -HostPoolName $rdsHostPool -AppGroupName "BrowserAppGroup" | Format-Table AppGroupName,UserPrincipalName -auto
+                    #add browser app group
+                    #Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool | where { $_.UserPrincipalName -eq $upn } | Invoke-RdsUserSessionLogoff -NoUserPrompt
+                }
+                '8' {
+                    'remove web browser from user profile'
+                    $upn = Read-Host "UPN for user ex. bsmith@nrtbus.com: "
+                    #remove browser app group
+                    Remove-RdsAppGroupUser -TenantName $rdsTenant -HostPoolName $rdsHostPool -AppGroupName "BrowserAppGroup" -UserPrincipalName $upn
+                    Get-RdsAppGroupUser -TenantName $rdsTenant -HostPoolName $rdsHostPool -AppGroupName "BrowserAppGroup" | Format-Table AppGroupName,UserPrincipalName -auto
+                    #Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool | where { $_.UserPrincipalName -eq $upn } | Invoke-RdsUserSessionLogoff -NoUserPrompt
+                }
             }
             pause
         }
