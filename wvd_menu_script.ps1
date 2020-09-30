@@ -70,14 +70,28 @@ function login-menu-rds-cert {
     $ApplicationId = "21cb4b5f-f455-4333-b6ac-86671ffa987b"
     $azAccount = Connect-AzureRMAccount -ServicePrincipal -TenantId $TenantId -ApplicationId $ApplicationId -CertificateThumbprint $Thumbprint 
     $rdsAccount = Add-RdsAccount -DeploymentUrl "https://rdbroker.wvd.microsoft.com" -CertificateThumbprint $Thumbprint -ApplicationId $ApplicationId -AadTenantId $TenantId
+    return $rdsAccount
 }
 
 ################################################################################
 #########################       Begin Application       ########################
 ################################################################################
 
+#Import modules
+if (Get-Module -ListAvailable -Name Microsoft.RDInfra.RDPowerShell) {
+    Write-Host "RDS Module Already Installed"
+} 
+else {
+    try {
+        Install-Module -Name Microsoft.RDInfra.RDPowerShell -AllowClobber -Confirm:$False -Force  
+    }
+    catch [Exception] {
+        $_.message 
+        exit
+    }
+}
 
-
+#$rdsAccount = login-menu-rds-cert
 
 
 #Initial login or validate already logged in
@@ -174,7 +188,7 @@ do
                     }   
                 '1' {
                         'get logged in users'
-                        Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool
+                        Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool |Sort SessionHostName | Format-Table -Property UserPrincipalName -GroupBy SessionHostName -AutoSize
                     } 
                 '2' {
                         'add a user to an app group'
@@ -193,8 +207,8 @@ do
                     }
                 '5' {
                     'number of logged in users'
-                    $users = Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool
-                    $users.count
+                    $hostGroup = Get-RdsUserSession -TenantName $rdsTenant -HostPoolName $rdsHostPool | Group-Object SessionHostName | Sort-Object SessionHostName | Format-Table -Property Values,Count
+                    $hostGroup
                    }
                 #'6' {
                     #'show all logged in users for a specific machine'
